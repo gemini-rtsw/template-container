@@ -40,7 +40,7 @@ install -Dpm 0644 deploy/%{name}.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/
 %systemd_postun %{name}.service
 
 %files
-# Not %config: the unit carries the image tag, so upgrades must overwrite it.
+# Not a config file: the unit carries the image tag, so upgrades must overwrite it.
 %{_unitdir}/%{name}.service
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}
 
