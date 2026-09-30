@@ -26,7 +26,7 @@ Runs the template-container image as a systemd service.
 %build
 # Pin the unit to the exact image built alongside this RPM.
 sed -e 's|@IMAGE@|%{appimage}:%{version}-git%{git_hash}|' deploy/%{name}.service.in > %{name}.service
-grep -q '@IMAGE@' %{name}.service && { echo "ERROR: placeholder not substituted" >&2; exit 1; }
+if grep -q '@IMAGE@' %{name}.service; then echo "ERROR: placeholder not substituted" >&2; exit 1; fi
 
 %install
 install -Dpm 0644 %{name}.service %{buildroot}%{_unitdir}/%{name}.service
