@@ -1,0 +1,29 @@
+[Unit]
+Description=template-container
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+
+# @IMAGE@ is replaced at build time with the exact image this RPM was built with.
+Environment=IMAGE=@IMAGE@
+
+# Best-effort pull: a registry outage must not stop a working local image.
+ExecStartPre=-/usr/bin/docker pull ${IMAGE}
+ExecStartPre=-/usr/bin/docker rm -f template-container
+
+# Foreground `docker run --rm`: systemd owns the lifecycle.
+ExecStart=/usr/bin/docker run --rm --name template-container \
+  --network host \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --env-file /etc/sysconfig/template-container \
+  ${IMAGE}
+
+ExecStop=/usr/bin/docker stop -t 10 template-container
+
+[Install]
+WantedBy=multi-user.target

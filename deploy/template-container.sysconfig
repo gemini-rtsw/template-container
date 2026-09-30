@@ -1,0 +1,3 @@
+# Host-specific settings, passed to the container as environment variables.
+# Kept across upgrades (%config(noreplace)).
+GREETING=hello from template-container
