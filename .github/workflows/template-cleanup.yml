@@ -1,0 +1,86 @@
+name: Template cleanup
+
+# Runs once, in a repo created from this template with "Use this template".
+# It renames everything called template-container after the new repo, so the copy
+# publishes its own RPM -- and, for a container, pins its own image -- instead
+# of colliding with this template's in the shared rpm-repo.
+#
+# In the template repo itself the job is skipped. In a copy it does nothing
+# once the rename is done: it looks for template-container.spec and stops if it is
+# gone. It does not delete itself because GITHUB_TOKEN may not push changes
+# to workflow files, so the file stays behind, inert. Delete it whenever you
+# like.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    if: github.event.repository.name != 'template-container'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rename template-container after this repo
+        env:
+          TEMPLATE: template-container
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$TEMPLATE.spec" ]; then
+            echo "No $TEMPLATE.spec: already renamed, nothing to do."
+            exit 0
+          fi
+
+          # Lowercase, because image names must be and the container
+          # template's appimage is built from this name.
+          NAME=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]')
+          echo "Renaming $TEMPLATE -> $NAME"
+
+          # Files named after the template.
+          git ls-files | grep -F "$TEMPLATE" | while read -r f; do
+            git mv "$f" "${f//$TEMPLATE/$NAME}"
+          done
+
+          # Their contents. Every tracked file except .github/ (GITHUB_TOKEN
+          # may not change workflows) and the gemini-rtsw-ci submodule
+          # (mode 160000 -- a commit pointer, not a file).
+          files=$(git ls-files -s | awk '$1 != "160000" {print $4}' | grep -v '^\.github/')
+          matches=$(grep -lF "$TEMPLATE" $files || true)
+          if [ -n "$matches" ]; then
+            sed -i "s/$TEMPLATE/$NAME/g" $matches
+          fi
+
+          # The README's "Use it for a new package" steps describe making
+          # this copy; in the copy they are done, so say what happened instead.
+          awk -v t="$TEMPLATE" -v n="$NAME" '
+            /^## Use it for a new package/ {
+              print "## Created from " t
+              print ""
+              print "This repo was created from [" t "](https://github.com/gemini-rtsw/" t "),"
+              print "and its Template cleanup workflow renamed everything to `" n "`."
+              print ""
+              print "- Grant this repo **Write** access to `rpm-repo` (org **Packages** -> `rpm-repo` ->"
+              print "  **Package settings** -> **Manage Actions access**), or no build can publish."
+              print "- Do **not** re-run the first Build run: it built the template as it was, before"
+              print "  the rename. Push a commit or open a PR to get a build of this repo."
+              print "- The RPM may be named differently from the repo (`hrwfs` for `hrwfs_dm`, say):"
+              print "  change `Name:` in the spec, and rename the files named after it with it."
+              print ""
+              skip = 1; next
+            }
+            skip && /^## / { skip = 0 }
+            !skip
+          ' README.md > README.md.new
+          mv README.md.new README.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Rename $TEMPLATE to $NAME" -m "Done by .github/workflows/template-cleanup.yml on this repo's first push, so the copy publishes under its own name instead of the template's."
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git show --stat HEAD
