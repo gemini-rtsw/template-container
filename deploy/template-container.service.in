@@ -12,8 +12,11 @@ TimeoutStartSec=0
 # @IMAGE@ is replaced at build time with the exact image this RPM was built with.
 Environment=IMAGE=@IMAGE@
 
-# Best-effort pull: a registry outage must not stop a working local image.
-ExecStartPre=-/usr/bin/docker pull ${IMAGE}
+# Pull as `software`, never root (root has no GHCR credentials on production
+# hosts), and only when the image is missing: the tag is pinned, so once it is
+# here there is nothing new to fetch. Without `software` (dev), a missing image
+# fails with the exact `docker pull` to run; Restart=always then starts it.
+ExecStartPre=/bin/sh -c 'docker image inspect "$IMAGE" >/dev/null 2>&1 || runuser -u software -- docker pull "$IMAGE" || { echo "Image $IMAGE is not on this host. As a docker-group user run: docker pull $IMAGE" >&2; exit 1; }'
 ExecStartPre=-/usr/bin/docker rm -f template-container
 
 # Foreground `docker run --rm`: systemd owns the lifecycle.
