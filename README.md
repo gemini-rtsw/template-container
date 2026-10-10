@@ -29,14 +29,16 @@ pulls and runs the image. Nothing is built on the host.
    granting: it builds the template as it was before the rename, and would publish a
    second `template-container` RPM. Push a commit or open a PR instead.
 4. Replace `Dockerfile` with your service.
-5. Make the image package **public** on GitHub (or give root a GHCR login),
-   because the unit runs `docker pull` as root.
+5. On the host, pre-pull the image as a docker-group user logged in to GHCR
+   before installing: `dnf install` does not pull it, and root never does. If
+   it is missing at start, the unit pulls it as the `software` user. See
+   [Shipping a container by RPM](https://github.com/gemini-rtsw/gemini-rtsw-ci#shipping-a-container-by-rpm).
 
 The RPM may be named differently from the repo (`hrwfs` for `hrwfs_dm`, say): change
 `Name:` in the spec, and rename the files named after it with it.
 
 **If the cleanup did not run** (an org that keeps `GITHUB_TOKEN` read-only, say), rename
-by hand before pushing to `main`: the spec file name and `Name:`, the two files in `deploy/` and the container name inside the unit, `.gitignore`, and **`%global appimage`, which must be `ghcr.io/gemini-rtsw/<repo name>` in lowercase** — CI pushes the image under the repo's name, so a mismatch builds green and fails on the host at `docker pull`. CI finds the spec by `*.spec`, so its file
+by hand before pushing to `main`: the spec file name and `Name:`, the two files in `deploy/` and the container name inside the unit, `.gitignore`, and **`%global appimage`, which must be `ghcr.io/gemini-rtsw/<repo name>` in lowercase** — CI pushes the image under the repo's name, so a mismatch builds green and fails on the host with `Image ... is not on this host` (the pull of a tag that was never pushed fails). CI finds the spec by `*.spec`, so its file
 name does not matter to the build, but `Name:` does — an unrenamed copy publishes a
 second `template-container` RPM into the shared rpm-repo. Doing it in a PR is safe, since PR builds
 publish nothing.
